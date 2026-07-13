@@ -132,5 +132,39 @@ def extract_answers(request):
         # Calculate the total score
 #def show_exam_result(request, course_id, submission_id):
 
+def submit(request, course_id):
+    course = get_object_or_404(Course, pk=course_id)
+    if not request.user.is_authenticated:
+        return redirect('onlinecourse:login')
+    
+    learner = request.user.learner
+    enrollment, _ = Enrollment.objects.get_or_create(learner=learner, course=course)
+    submission = Submission.objects.create(enrollment=enrollment)
+    
+    for question in course.question_set.all():
+        choice_id = request.POST.get(f'choice_{question.id}')
+        if choice_id:
+            choice = Choice.objects.get(pk=choice_id)
+            submission.choices.add(choice)
+            
+    submission.save()
+    return redirect('onlinecourse:show_exam_result', course_id=course.id, submission_id=submission.id)
+
+def show_exam_result(request, course_id, submission_id):
+    course = get_object_or_404(Course, pk=course_id)
+    submission = get_object_or_404(Submission, pk=submission_id)
+    
+    total_questions = course.question_set.count()
+    correct_answers = sum(1 for choice in submission.choices.all() if choice.is_correct)
+            
+    score = int((correct_answers / total_questions) * 100) if total_questions > 0 else 0
+    passed = score >= 80
+    
+    context = {
+        'course': course,
+        'score': score,
+        'passed': passed,
+    }
+    return render(request, 'onlinecourse/exam_result_bootstrap.html', context)
 
 
